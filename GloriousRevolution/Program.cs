@@ -43,9 +43,6 @@ namespace GloriousRevolution
             _orbwalker = new Orbwalking.Orbwalker(orbwalkerMenu);
             _firstMenu.AddSubMenu(orbwalkerMenu);
 
-            var ts = _firstMenu.AddSubMenu(new Menu("Target Selector", "Target Selector"));
-            TargetSelector.AddToMenu(ts);
-
             var combo = _firstMenu.AddSubMenu(new Menu("Combo", "Combo"));
             combo.AddItem(new MenuItem("QC", "Q").SetValue(true));
             combo.AddItem(new MenuItem("WC", "W").SetValue(true));
