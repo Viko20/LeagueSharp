@@ -66,6 +66,7 @@ namespace GloriousRevolution
 
             var draw = _firstMenu.AddSubMenu(new Menu("Drawing", "Drawing"));
             draw.AddItem(new MenuItem("DK", "Draw Killable").SetValue(true));
+            draw.AddItem(new MenuItem("FA", "Fed Alert").SetValue(true));
 
             _firstMenu.AddToMainMenu();
 
@@ -171,6 +172,7 @@ namespace GloriousRevolution
                 var castStartPos = Player.ServerPosition.Extend(target.ServerPosition, ERange);
                 _e.UpdateSourcePosition(castStartPos, castStartPos);
                 var prediction = _e.GetPrediction(target, true);
+
                 if (prediction.Hitchance >= HitChance.High)
                     _e.Cast(castStartPos, prediction.CastPosition);
             }
@@ -188,7 +190,17 @@ namespace GloriousRevolution
                 {
                     if (enemy.IsVisible && !enemy.IsDead && IsKillable())
                     {
-                        Drawing.DrawText(enemy.HPBarPosition.X, enemy.HPBarPosition.Y + 50, Color.Red, "Killable");
+                        Drawing.DrawText(enemy.HPBarPosition.X, enemy.HPBarPosition.Y + 50, Color.Green, "Killable");
+                    }
+                }
+            }
+            if (_firstMenu.Item("DK").GetValue<bool>())
+            {
+                foreach (var enemy in HeroManager.Enemies)
+                {
+                    if (enemy.IsVisible && !enemy.IsDead && enemy.ChampionsKilled + enemy.Assists > Player.Assists + Player.ChampionsKilled + 3)
+                    {
+                        Drawing.DrawText(enemy.HPBarPosition.X, enemy.HPBarPosition.Y + 100, Color.Red, "Om nom nom!");
                     }
                 }
             }
