@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Linq;
 using LeagueSharp;
 using LeagueSharp.Common;
 
@@ -59,7 +60,7 @@ namespace GloriousRevolution
             var extra = _firstMenu.AddSubMenu(new Menu("Extra", "Extra"));
             extra.AddItem(new MenuItem("AGCW", "Gapclose W").SetValue(true));
             extra.AddItem(new MenuItem("IR", "Interrupt W").SetValue(true));
-            extra.AddItem(new MenuItem("CCW", "Chain stun W").SetValue(true));
+            extra.AddItem(new MenuItem("CCW", "Chain cc W").SetValue(true));
 
             var draw = _firstMenu.AddSubMenu(new Menu("Drawing", "Drawing"));
             draw.AddItem(new MenuItem("DK", "Draw Killable").SetValue(true));
@@ -70,6 +71,17 @@ namespace GloriousRevolution
             Game.OnUpdate += Game_OnUpdate;
             Drawing.OnDraw += Drawing_Ondraw;
             AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
+            Interrupter2.OnInterruptableTarget += Interrupter2_OnInterruptableTarget;
+        }
+
+        private static void Interrupter2_OnInterruptableTarget(Obj_AI_Hero sender,
+            Interrupter2.InterruptableTargetEventArgs args)
+        {
+            if (_w.IsReady() && sender.IsValidTarget(_w.Range) && !sender.IsZombie &&
+                _firstMenu.Item("IR").GetValue<bool>())
+            {
+                _w.Cast(sender);
+            }
         }
 
         private static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
@@ -85,10 +97,16 @@ namespace GloriousRevolution
 
         private static void Game_OnUpdate(EventArgs args)
         {
+            if (Player.IsDead || Player.IsRecalling())
+                return;
+
+            UltimateFollow();
+            ChainW();
+
             if (_orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Combo)
                 Combo();
             if (_orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Mixed)
-                Harass();
+                Harass();       
         }
 
         private static void Combo()
@@ -114,22 +132,42 @@ namespace GloriousRevolution
                 var target = TargetSelector.GetTarget(_w.Range, TargetSelector.DamageType.Magical);
                 var predictionW = _w.GetPrediction(target);
 
-                if (target != null && predictionW.Hitchance >= HitChance.VeryHigh)
-                    _w.CastIfWillHit(target, _firstMenu.Item("WMC").GetValue<int>());
+                if (target != null && predictionW.Hitchance >= HitChance.High) { 
+                    foreach (var hero in HeroManager.Enemies.Where(x => x.IsValidTarget(_w.Range, false)))
+                    {
+                        if (hero.CountEnemiesInRange(200) >= _firstMenu.Item("WMC").GetValue<Slider>().Value)
+                            _w.Cast(hero.ServerPosition);
+                    }
+                }
             }
 
             if (_r.IsReady() && _firstMenu.Item("RC").GetValue<bool>() && IsKillable())
             {
                 var target = TargetSelector.GetTarget(_r.Range, TargetSelector.DamageType.Magical);
-                if (_firstMenu.Item("RMC").GetValue<int>() == 1)
+                if (_firstMenu.Item("RMC").GetValue<Slider>().Value == 1)
                 {
-                    if (target != null && target.HealthPercent > 15 || Player.HealthPercent < 25 || target.Level >= Player.Level + 2)
+                    if (target != null && target.HealthPercent > 15 || Player.HealthPercent < 25 ||
+                        target.Level >= Player.Level + 2)
                         _r.Cast(target);
                 }
                 else
                 {
-                    _r.CastIfWillHit(target, _firstMenu.Item("RMC").GetValue<int>());
+                    foreach (var hero in HeroManager.Enemies.Where(x => x.IsValidTarget(_r.Range, false)))
+                    {
+                        if (hero.CountEnemiesInRange(325) >= _firstMenu.Item("RMC").GetValue<Slider>().Value)
+                            _r.Cast(hero);
+                    }
                 }
+            }
+        }
+
+        private static void UltimateFollow()
+        {
+            if (_r.Instance.Name != "ViktorChaosStorm")
+            {
+                var target = TargetSelector.GetTarget(Player, 1100, TargetSelector.DamageType.Magical);
+                if (target != null)
+                    Utility.DelayAction.Add(125, () => _r.Cast(target));
             }
         }
 
@@ -151,6 +189,22 @@ namespace GloriousRevolution
 
                     if (target != null)
                         _q.Cast(target);
+                }
+            }
+        }
+
+        private static void ChainW()
+        {
+            if (_w.IsReady() && _firstMenu.Item("CCW").GetValue<bool>())
+            {
+                var targets = HeroManager.Enemies.Where(x => x.IsValidTarget(_w.Range));
+                foreach (var enemy in targets)
+                {
+                    if (enemy.IsCharmed || enemy.IsMovementImpaired() || enemy.IsRooted || enemy.IsStunned ||
+                        enemy.IsRecalling())
+                    {
+                        _w.Cast(enemy);
+                    }
                 }
             }
         }
@@ -195,7 +249,8 @@ namespace GloriousRevolution
             {
                 foreach (var enemy in HeroManager.Enemies)
                 {
-                    if (enemy.IsVisible && !enemy.IsDead && enemy.ChampionsKilled + enemy.Assists > Player.Assists + Player.ChampionsKilled + 3)
+                    if (enemy.IsVisible && !enemy.IsDead &&
+                        enemy.ChampionsKilled + enemy.Assists > Player.Assists + Player.ChampionsKilled + 3)
                     {
                         Drawing.DrawText(enemy.HPBarPosition.X, enemy.HPBarPosition.Y + 100, Color.Red, "Om nom nom!");
                     }
