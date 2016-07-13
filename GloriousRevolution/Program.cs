@@ -1,9 +1,12 @@
 ﻿using System;
-using System.Drawing;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using LeagueSharp;
 using LeagueSharp.Common;
 using LeagueSharp.Common.Data;
+using SharpDX;
+using Color = System.Drawing.Color;
 
 namespace GloriousRevolution
 {
@@ -15,7 +18,8 @@ namespace GloriousRevolution
         private static Orbwalking.Orbwalker _orbwalker;
         private static Menu _firstMenu;
         private const int MaxRangeE = 1225;
-
+        private const int LengthE = 700;
+        private const int ERange = 525;
 
         static void Main(string[] args)
         {
@@ -32,15 +36,12 @@ namespace GloriousRevolution
             E = new Spell(SpellSlot.E, 525);
             R = new Spell(SpellSlot.R, 700);
 
-            var qspell = SpellDatabase.GetBySpellSlot(SpellSlot.Q, Champ);
-            var wspell = SpellDatabase.GetBySpellSlot(SpellSlot.W, Champ);
-            var espell = SpellDatabase.GetBySpellSlot(SpellSlot.E, Champ);
-            var rspell = SpellDatabase.GetBySpellSlot(SpellSlot.R, Champ);
+        
 
-            Q.SetTargetted(qspell.Delay, qspell.MissileSpeed);
-            W.SetSkillshot(wspell.Delay, wspell.Width, wspell.MissileSpeed, false, SkillshotType.SkillshotCircle);
-            E.SetSkillshot(espell.Delay, espell.Width, espell.MissileSpeed, false, SkillshotType.SkillshotLine);
-            R.SetSkillshot(rspell.Delay, rspell.Width, rspell.MissileSpeed, false, SkillshotType.SkillshotCircle);
+            Q.SetTargetted(0.25f, 2000);
+            W.SetSkillshot(0.25f, 300, float.MaxValue, false, SkillshotType.SkillshotCircle);
+            E.SetSkillshot(0.0f, 90, 1200, false, SkillshotType.SkillshotLine);
+            R.SetSkillshot(0.25f, 250, float.MaxValue, false, SkillshotType.SkillshotCircle);
 
             _firstMenu = new Menu("GloriousEvolution" + Champ, "firstMenu", true);
 
@@ -65,7 +66,7 @@ namespace GloriousRevolution
 
             Menu extra = _firstMenu.AddSubMenu(new Menu("Extra", "Extra"));
             extra.AddItem(new MenuItem("AGCW", "Gapclose W").SetValue(true));
-            extra.AddItem(new MenuItem("IR", "Interrupt R").SetValue(true));
+            extra.AddItem(new MenuItem("IR", "Interrupt W").SetValue(true));
             extra.AddItem(new MenuItem("CCW", "Chain stun W").SetValue(true));
 
             Menu draw = _firstMenu.AddSubMenu(new Menu("Drawing", "Drawing"));
@@ -76,9 +77,19 @@ namespace GloriousRevolution
 
             Game.OnUpdate += Game_OnUpdate;
             Drawing.OnDraw += Drawing_Ondraw;
+            AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
 
         }
 
+        private static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
+        {
+            if (_firstMenu.Item("AGCW").GetValue<bool>())
+          
+                if (gapcloser.End.Distance(ObjectManager.Player.ServerPosition) < W.Range)
+                {
+                    W.Cast(gapcloser.End);
+                }
+        }
 
 
         private static void Game_OnUpdate(EventArgs args)
@@ -97,7 +108,7 @@ namespace GloriousRevolution
                 var target = TargetSelector.GetTarget(MaxRangeE, TargetSelector.DamageType.Magical);
 
                 if (target != null)
-                    E.Cast(target);
+                    PredictE(target);
             }
 
             if (Q.IsReady() && _firstMenu.Item("QC").GetValue<bool>())
@@ -111,19 +122,25 @@ namespace GloriousRevolution
             if (W.IsReady() && _firstMenu.Item("WC").GetValue<bool>())
             {
                 var target = TargetSelector.GetTarget(W.Range, TargetSelector.DamageType.Magical);
+                var predictionW = W.GetPrediction(target);
 
-                if (target != null)
-                    W.Cast(target);
-                
+                if (target != null && predictionW.Hitchance >= HitChance.VeryHigh)
+                    W.Cast(target.ServerPosition);
+               
             }
 
-            if (R.IsReady() && _firstMenu.Item("RC").GetValue<bool>())
+            if (R.IsReady() && _firstMenu.Item("RC").GetValue<bool>() && IsKillable())
             {
                 var target = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Magical);
+                if (_firstMenu.Item("RMC").GetValue<int>() == 1)
+                {
+                    if (target != null && target.HealthPercent > 15 || Player.HealthPercent < 25 || target.Level >= Player.Level + 2)
+                        R.Cast(target);
 
-                if (target != null)
-                    R.Cast(target);
+                } else {
 
+                    R.CastIfWillHit(target, _firstMenu.Item("RMC").GetValue<int>());
+                }
             }
 
         }
@@ -132,21 +149,41 @@ namespace GloriousRevolution
         {
             if (Player.ManaPercent >= _firstMenu.Item("ManaH").GetValue<Slider>().Value)
             {
-                if (E.IsReady() && _firstMenu.Item("EC").GetValue<bool>())
+                if (E.IsReady() && _firstMenu.Item("EH").GetValue<bool>())
                 {
                     var target = TargetSelector.GetTarget(MaxRangeE, TargetSelector.DamageType.Magical);
 
                     if (target != null)
-                        E.Cast(target);
+                        PredictE(target);
                 }
 
-                if (Q.IsReady() && _firstMenu.Item("QC").GetValue<bool>())
+                if (Q.IsReady() && _firstMenu.Item("QH").GetValue<bool>())
                 {
                     var target = TargetSelector.GetTarget(Q.Range, TargetSelector.DamageType.Magical);
 
                     if (target != null)
                         Q.Cast(target);
                 }
+            }
+        }
+
+        private static void PredictE(Obj_AI_Hero target)
+        {
+            if (Player.ServerPosition.Distance(target.ServerPosition) < MaxRangeE-LengthE)
+            {
+                E.UpdateSourcePosition(target.ServerPosition, target.ServerPosition);
+                var prediction =E.GetPrediction(target, true);
+                if (target.IsValidTarget(E.Range) && prediction.Hitchance == HitChance.High)
+                    E.Cast(target);
+
+            }
+            else if (Player.ServerPosition.Distance(target.ServerPosition) < E.Range + ERange)
+            {
+                var castStartPos = Player.ServerPosition.Extend(target.ServerPosition, ERange);
+                E.UpdateSourcePosition(castStartPos, castStartPos);
+                var prediction = E.GetPrediction(target, true);
+                if (prediction.Hitchance >= HitChance.High)
+                    E.Cast(castStartPos, prediction.CastPosition);
             }
         }
 
@@ -174,7 +211,7 @@ namespace GloriousRevolution
                     if (!minion.IsDead && minion.IsVisible && !minion.IsAlly)
                     {
                         var damage = Player.GetAutoAttackDamage(minion, false);
-                        if (damage > minion.Health)
+                        if (damage >= minion.Health)
                         {
                             Render.Circle.DrawCircle(minion.Position, minion.BoundingRadius + 10, Color.Red);
                         }
@@ -187,15 +224,39 @@ namespace GloriousRevolution
 
         public static bool IsKillable()
         {
-            Obj_AI_Hero comboTarget = TargetSelector.GetTarget(1000, TargetSelector.DamageType.Magical);
-            if (comboTarget != null)
+            Obj_AI_Hero target = TargetSelector.GetTarget(2500, TargetSelector.DamageType.Magical);
+            if (target != null)
             {
                 double damage = 0d;
-                damage = Player.GetSpellDamage(comboTarget, SpellSlot.Q) +
-                         Player.GetSpellDamage(comboTarget, SpellSlot.E) +
-                         Player.GetSpellDamage(comboTarget, SpellSlot.R);
+                var qaaDmg = new Double[] {20, 40, 60, 80, 100};
+                if (_firstMenu.Item("QC").GetValue<bool>() && Q.IsReady())
+                {
+                    damage += target.GetSpellDamage(target, SpellSlot.Q);
+                    damage += target.CalcDamage(target, Damage.DamageType.Magical, qaaDmg[Q.Level - 1] + 0.5 * target.TotalMagicalDamage + target.TotalAttackDamage);
+                }
 
-                if (damage > comboTarget.Health)
+                if (_firstMenu.Item("QC").GetValue<bool>() && !Q.IsReady() && Player.HasBuff("viktorpowertransferreturn"))
+                {
+                    damage += Player.CalcDamage(target, Damage.DamageType.Magical, qaaDmg[Q.Level - 1] + 0.5 * Player.TotalMagicalDamage + Player.TotalAttackDamage);
+                }
+
+               
+                if (_firstMenu.Item("EC").GetValue<bool>() && E.IsReady())
+                {
+                    if (Player.HasBuff("viktoreaug") || Player.HasBuff("viktorqeaug") || Player.HasBuff("viktorqweaug"))
+                        damage += Player.GetSpellDamage(target, SpellSlot.E, 1);
+                    else
+                        damage += Player.GetSpellDamage(target, SpellSlot.E);
+                }
+
+              
+                if (_firstMenu.Item("RC").GetValue<bool>() && R.IsReady())
+                {
+                    damage += Damage.GetSpellDamage(Player, target, SpellSlot.R, 1);
+                    damage += Damage.GetSpellDamage(Player, target, SpellSlot.R);
+                }
+
+                if (damage > target.Health)
                 {
                     return true;
                 }
