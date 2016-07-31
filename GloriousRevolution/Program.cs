@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using LeagueSharp;
 using LeagueSharp.Common;
+using SharpDX;
+using Color = System.Drawing.Color;
 
 namespace GloriousRevolution
 {
@@ -203,20 +204,20 @@ namespace GloriousRevolution
 
                 if (_e.IsReady())
                 {
-                    var minion = MinionManager.GetMinions(Player.Position, MaxRangeE, MinionTypes.All, MinionTeam.Enemy,
-                    MinionOrderTypes.MaxHealth);
+                    List<Vector2> minionLoc = new List<Vector2>();
 
-                    if (minion == null)
+                    var minions = MinionManager.GetMinions(ObjectManager.Player.ServerPosition, MaxRangeE);
+                    
+                    if (minions == null)
                         return;
 
-                    var ePosition =
-                        _e.GetLineFarmLocation(
-                            MinionManager.GetMinionsPredictedPositions(MinionManager.GetMinions(MaxRangeE), _e.Delay, _e.Width, _e.Speed, Player.Position, MaxRangeE, false, SkillshotType.SkillshotLine));
-
-                    foreach (var minions in minion)
+                    foreach (var minion in minions)
                     {
-                        _e.Cast(ePosition.Position);
+                        minionLoc.Add(minion.ServerPosition.To2D());   
                     }
+
+                    var eFarmPredict = _e.GetLineFarmLocation(minionLoc);
+                    _e.Cast(eFarmPredict.Position);
 
                 }
             }
@@ -240,14 +241,14 @@ namespace GloriousRevolution
 
         private static void PredictE(Obj_AI_Hero target)
         {
-            if (Player.ServerPosition.Distance(target.ServerPosition) < MaxRangeE - LengthE)
+            if (Player.ServerPosition.Distance(target.ServerPosition) <= MaxRangeE - LengthE)
             {
                 _e.UpdateSourcePosition(target.ServerPosition, target.ServerPosition);
                 var prediction = _e.GetPrediction(target, true);
                 if (target.IsValidTarget(_e.Range) && prediction.Hitchance == HitChance.High)
                     _e.Cast(target);
             }
-            else if (Player.ServerPosition.Distance(target.ServerPosition) < _e.Range + ERange)
+            else if (Player.ServerPosition.Distance(target.ServerPosition) <= _e.Range + ERange)
             {
                 var castStartPos = Player.ServerPosition.Extend(target.ServerPosition, ERange);
                 _e.UpdateSourcePosition(castStartPos, castStartPos);
