@@ -63,6 +63,7 @@ namespace GloriousRevolution
             extra.AddItem(new MenuItem("AGCW", "Gapclose W").SetValue(true));
             extra.AddItem(new MenuItem("IR", "Interrupt W").SetValue(true));
             extra.AddItem(new MenuItem("CCW", "Chain cc W").SetValue(true));
+            extra.AddItem(new MenuItem("ManaL", "Min mana clear").SetValue(new Slider(40)));
 
             var draw = _firstMenu.AddSubMenu(new Menu("Drawing", "Drawing"));
             draw.AddItem(new MenuItem("DK", "Draw Killable").SetValue(true));
@@ -150,8 +151,7 @@ namespace GloriousRevolution
                 var target = TargetSelector.GetTarget(_r.Range, TargetSelector.DamageType.Magical);
                 if (_firstMenu.Item("RMC").GetValue<Slider>().Value == 1)
                 {
-                    if (target != null && target.HealthPercent > 15 || Player.HealthPercent < 25 ||
-                        target.Level >= Player.Level + 2)
+                    if (target != null && target.HealthPercent > 15)
                         _r.Cast(target);
                 }
                 else
@@ -171,7 +171,7 @@ namespace GloriousRevolution
             {
                 var target = TargetSelector.GetTarget(Player, 2000, TargetSelector.DamageType.Magical);
                 if (target != null)
-                    Utility.DelayAction.Add(75, () => _r.Cast(target));
+                    Utility.DelayAction.Add(150, () => _r.Cast(target));
             }
         }
 
@@ -197,27 +197,33 @@ namespace GloriousRevolution
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         private static void Laneclear()
         {
-            if (Player.ManaPercent >= _firstMenu.Item("ManaH").GetValue<Slider>().Value)
+            if (Player.ManaPercent >= _firstMenu.Item("ManaL").GetValue<Slider>().Value)
             {
 
                 if (_e.IsReady())
                 {
-                    List<Vector2> minionLoc = new List<Vector2>();
+                    List<Vector3> minionLoc = new List<Vector3>();
 
                     var minions = MinionManager.GetMinions(ObjectManager.Player.ServerPosition, MaxRangeE);
-                    
-                    if (minions == null)
+                    var rangedMinions = MinionManager.GetMinions(ObjectManager.Player.ServerPosition, MaxRangeE, MinionTypes.Ranged);
+
+                    if (minions == null || rangedMinions == null)
                         return;
 
-                    foreach (var minion in minions)
+                    var eLocation = _e.GetLineFarmLocation(minions, ERange);
+                    var e2Location = _e.GetLineFarmLocation(rangedMinions, ERange);
+                    var bestLocation = (eLocation.MinionsHit > e2Location.MinionsHit + 1) ? eLocation : e2Location;
+
+                    if (bestLocation.MinionsHit > 3)
                     {
-                        minionLoc.Add(minion.ServerPosition.To2D());   
+                        _e.Cast(bestLocation.Position);
                     }
 
-                    var eFarmPredict = _e.GetLineFarmLocation(minionLoc);
-                    _e.Cast(eFarmPredict.Position);
 
                 }
             }
