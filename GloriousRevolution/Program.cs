@@ -207,7 +207,7 @@ namespace GloriousRevolution
 
                 if (_e.IsReady())
                 {
-                    List<Vector3> minionLoc = new List<Vector3>();
+                   
 
                     var minions = MinionManager.GetMinions(ObjectManager.Player.ServerPosition, MaxRangeE);
                     var rangedMinions = MinionManager.GetMinions(ObjectManager.Player.ServerPosition, MaxRangeE, MinionTypes.Ranged);
@@ -221,7 +221,7 @@ namespace GloriousRevolution
 
                     if (bestLocation.MinionsHit > 3)
                     {
-                        _e.Cast(bestLocation.Position);
+                        _e.Cast(eLocation.Position, e2Location.Position);
                     }
 
 
