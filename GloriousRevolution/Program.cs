@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using LeagueSharp;
@@ -106,7 +107,9 @@ namespace GloriousRevolution
             if (_orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Combo)
                 Combo();
             if (_orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Mixed)
-                Harass();       
+                Harass();
+            if (_orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.LaneClear)
+                Laneclear();
         }
 
         private static void Combo()
@@ -165,9 +168,9 @@ namespace GloriousRevolution
         {
             if (_r.Instance.Name != "ViktorChaosStorm")
             {
-                var target = TargetSelector.GetTarget(Player, 1100, TargetSelector.DamageType.Magical);
+                var target = TargetSelector.GetTarget(Player, 2000, TargetSelector.DamageType.Magical);
                 if (target != null)
-                    Utility.DelayAction.Add(125, () => _r.Cast(target));
+                    Utility.DelayAction.Add(75, () => _r.Cast(target));
             }
         }
 
@@ -189,6 +192,32 @@ namespace GloriousRevolution
 
                     if (target != null)
                         _q.Cast(target);
+                }
+            }
+        }
+
+        private static void Laneclear()
+        {
+            if (Player.ManaPercent >= _firstMenu.Item("ManaH").GetValue<Slider>().Value)
+            {
+
+                if (_e.IsReady())
+                {
+                    var minion = MinionManager.GetMinions(Player.Position, MaxRangeE, MinionTypes.All, MinionTeam.Enemy,
+                    MinionOrderTypes.MaxHealth);
+
+                    if (minion == null)
+                        return;
+
+                    var ePosition =
+                        _e.GetLineFarmLocation(
+                            MinionManager.GetMinionsPredictedPositions(MinionManager.GetMinions(MaxRangeE), _e.Delay, _e.Width, _e.Speed, Player.Position, MaxRangeE, false, SkillshotType.SkillshotLine));
+
+                    foreach (var minions in minion)
+                    {
+                        _e.Cast(ePosition.Position);
+                    }
+
                 }
             }
         }
